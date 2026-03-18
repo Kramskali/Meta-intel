@@ -29,8 +29,12 @@ import {
   Info,
   Activity,
   Clock,
+  Crown,
+  AlertTriangle,
 } from 'lucide-react';
 import { collectAllMetadata, getMetadataExplanations } from '@/utils/metadataCollector';
+import { calculatePrivacyScore } from '@/utils/privacyScorer';
+import PricingModal from '@/components/PricingModal';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -107,6 +111,8 @@ const Dashboard = () => {
   const [metadata, setMetadata] = useState(null);
   const [loading, setLoading] = useState(true);
   const [serverMetadata, setServerMetadata] = useState(null);
+  const [privacyScore, setPrivacyScore] = useState(null);
+  const [showPricing, setShowPricing] = useState(false);
   const explanations = getMetadataExplanations();
 
   const loadMetadata = async () => {
@@ -114,6 +120,10 @@ const Dashboard = () => {
     try {
       const clientData = await collectAllMetadata();
       setMetadata(clientData);
+
+      // Calculate privacy score
+      const score = calculatePrivacyScore(clientData);
+      setPrivacyScore(score);
 
       // Get server-side metadata
       const response = await axios.get(`${API}/metadata/collect`);
@@ -187,6 +197,14 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center gap-2">
             <Button
+              onClick={() => setShowPricing(true)}
+              className="font-heading uppercase tracking-wider text-xs bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.4)]"
+              data-testid="upgrade-button"
+            >
+              <Crown className="w-4 h-4 mr-2" />
+              Upgrade to Pro
+            </Button>
+            <Button
               variant="ghost"
               size="sm"
               onClick={loadMetadata}
@@ -236,6 +254,75 @@ const Dashboard = () => {
 
         {/* Bento Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Privacy Score Card */}
+          {privacyScore && (
+            <Card className="bg-[#0A0A0A] border border-zinc-800 rounded-sm relative overflow-hidden hover:border-cyan-500/50 transition-colors duration-300 lg:col-span-2" data-testid="privacy-score-card">
+              <div className={`absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl ${
+                privacyScore.grade === 'A' ? 'bg-emerald-500/10' :
+                privacyScore.grade === 'B' ? 'bg-cyan-500/10' :
+                privacyScore.grade === 'C' ? 'bg-yellow-500/10' :
+                'bg-red-500/10'
+              }`}></div>
+              <CardHeader className="border-b border-zinc-800/50 bg-zinc-900/20 relative z-10">
+                <CardTitle className="font-heading font-semibold text-xl tracking-wide text-cyan-400 flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Privacy Score
+                  <Badge className={`ml-auto font-heading text-lg px-3 py-1 ${
+                    privacyScore.grade === 'A' ? 'bg-emerald-600' :
+                    privacyScore.grade === 'B' ? 'bg-cyan-600' :
+                    privacyScore.grade === 'C' ? 'bg-yellow-600' :
+                    'bg-red-600'
+                  } text-white`} data-testid="privacy-grade">
+                    {privacyScore.grade}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 relative z-10">
+                <div className="flex items-center gap-6 mb-4">
+                  <div className="text-center">
+                    <div className={`font-heading font-bold text-6xl ${
+                      privacyScore.score >= 80 ? 'text-emerald-400' :
+                      privacyScore.score >= 65 ? 'text-cyan-400' :
+                      privacyScore.score >= 50 ? 'text-yellow-400' :
+                      'text-red-400'
+                    }`} data-testid="privacy-score">
+                      {privacyScore.score}
+                    </div>
+                    <div className="text-zinc-500 text-sm font-mono">out of 100</div>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-zinc-300 leading-relaxed">{privacyScore.summary}</p>
+                    {privacyScore.issues.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2 font-mono">Top Issues:</p>
+                        <div className="space-y-1">
+                          {privacyScore.issues.slice(0, 3).map((issue, idx) => (
+                            <div key={idx} className="flex items-start gap-2">
+                              <AlertTriangle className={`w-3 h-3 flex-shrink-0 mt-0.5 ${
+                                issue.severity === 'high' ? 'text-red-400' :
+                                issue.severity === 'medium' ? 'text-yellow-400' :
+                                'text-blue-400'
+                              }`} />
+                              <span className="text-xs text-zinc-400">{issue.issue}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setShowPricing(true)}
+                  className="w-full font-heading uppercase tracking-wider text-xs bg-cyan-600 hover:bg-cyan-500 text-white"
+                  data-testid="unlock-recommendations-button"
+                >
+                  <Crown className="w-4 h-4 mr-2" />
+                  Unlock Full Report & Recommendations
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Time Info - Small Card */}
           <Card className="bg-[#0A0A0A] border border-zinc-800 rounded-sm relative overflow-hidden hover:border-cyan-500/50 transition-colors duration-300" data-testid="metadata-card-time">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl"></div>
@@ -345,6 +432,9 @@ const Dashboard = () => {
           <p className="mt-2">No data is shared with third parties. Use Export to save your report.</p>
         </div>
       </main>
+
+      {/* Pricing Modal */}
+      <PricingModal open={showPricing} onClose={() => setShowPricing(false)} />
     </div>
   );
 };
