@@ -1,0 +1,125 @@
+{
+  "identity": {
+    "persona": "E1: The Anti-AI Designer",
+    "philosophy": "Function over form, but form must be aggressive. We are building a tool for truth, not a toy. The interface should feel like a 'heads-up display' (HUD) for your digital soul.",
+    "principles": [
+      "Fusion over Imitation: Mix Terminal aesthetics with modern SaaS usability.",
+      "Emotion First: The user should feel 'plugged in' and 'secure'.",
+      "Content is King: Data is the hero. Metadata is the story.",
+      "Negative Space: Use it to group logical data sets.",
+      "Contrast: High contrast for readability in low-light environments."
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Rajdhani, sans-serif",
+      "body": "Inter, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "installation": "Add this to index.html or import in CSS: @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Rajdhani:wght@500;600;700&display=swap');",
+    "usage": {
+      "h1": "font-heading font-bold text-4xl md:text-6xl tracking-tight uppercase",
+      "h2": "font-heading font-semibold text-2xl md:text-3xl tracking-wide text-primary/90",
+      "h3": "font-heading font-medium text-xl tracking-normal text-muted-foreground",
+      "body": "font-body text-base leading-relaxed text-zinc-300",
+      "label": "font-mono text-xs uppercase tracking-widest text-zinc-500",
+      "data": "font-mono text-sm text-cyan-400"
+    }
+  },
+  "colors": {
+    "theme": "dark",
+    "palette": {
+      "background": "#050505",
+      "surface": "#0A0A0A",
+      "surface_highlight": "#121212",
+      "border": "#27272A",
+      "primary": "#06B6D4",
+      "secondary": "#3B82F6",
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "danger": "#EF4444",
+      "text_primary": "#FAFAFA",
+      "text_secondary": "#A1A1AA",
+      "text_muted": "#52525B"
+    },
+    "tokens": {
+      "bg-app": "bg-[#050505]",
+      "bg-card": "bg-[#0A0A0A]",
+      "border-default": "border-zinc-800",
+      "text-glow": "drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]"
+    }
+  },
+  "layout": {
+    "grid_system": "Bento Grid Mode B (High Density)",
+    "container": "max-w-7xl mx-auto p-4 md:p-8",
+    "spacing": {
+      "section_gap": "gap-6",
+      "card_padding": "p-6",
+      "internal_gap": "space-y-4"
+    },
+    "border_radius": "rounded-sm"
+  },
+  "components": {
+    "Card": {
+      "base": "bg-[#0A0A0A] border border-zinc-800 rounded-sm relative overflow-hidden",
+      "hover": "hover:border-cyan-500/50 transition-colors duration-300",
+      "header": "border-b border-zinc-800/50 p-4 bg-zinc-900/20",
+      "content": "p-6"
+    },
+    "Button": {
+      "base": "font-heading uppercase tracking-wider font-semibold rounded-sm",
+      "primary": "bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.3)]",
+      "secondary": "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700",
+      "ghost": "hover:bg-zinc-800/50 text-zinc-400 hover:text-white"
+    },
+    "Badge": {
+      "base": "font-mono text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider border",
+      "success": "bg-emerald-950/30 text-emerald-400 border-emerald-900/50",
+      "warning": "bg-amber-950/30 text-amber-400 border-amber-900/50",
+      "danger": "bg-red-950/30 text-red-400 border-red-900/50",
+      "info": "bg-cyan-950/30 text-cyan-400 border-cyan-900/50"
+    },
+    "Progress": {
+      "root": "h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800",
+      "indicator": "bg-cyan-500 h-full transition-all duration-500 ease-out"
+    }
+  },
+  "visual_enhancers": {
+    "scanlines": "background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1)); background-size: 100% 4px;",
+    "glow": "box-shadow: 0 0 20px -5px var(--tw-shadow-color);",
+    "glass": "backdrop-blur-md bg-black/40 border-b border-white/5"
+  },
+  "motion": {
+    "micro_interactions": "transition-all duration-200 ease-out",
+    "page_transition": "animate-in fade-in slide-in-from-bottom-4 duration-500",
+    "hover_lift": "hover:-translate-y-1 hover:shadow-lg"
+  },
+  "assets": {
+    "icons": "Use Lucide React icons. Import specific icons like 'Shield', 'Globe', 'HardDrive', 'Cpu', 'Eye', 'Lock', 'Unlock', 'Activity', 'Terminal'.",
+    "charts": "Use Recharts within Shadcn Chart component."
+  },
+  "universal_guidelines": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: 'transition: all'. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms.",
+    "You MUST NOT center align the app container, ie do not add '.App { text-align: center; }' in the css file. This disrupts the human natural reading flow of text.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡 for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN.",
+    "All interactive and key informational elements MUST include a `data-testid` attribute."
+  ],
+  "implementation_steps": [
+    "STEP 1: Setup Global Styles. Update index.css with the provided font imports and color variables (if utilizing CSS variables). Ensure 'dark' class is applied to html/body.",
+    "STEP 2: Build Layout Shell. Create a Sidebar + Main Content layout. Sidebar should be collapsible on mobile.",
+    "STEP 3: Create Core Components. Customize Shadcn Card, Button, Badge to match the 'Cyberpunk/HUD' aesthetic defined in 'components' section.",
+    "STEP 4: Implement Dashboard View. Build the Bento Grid layout. Create 'Widget' components for each metadata category (Browser, Device, Network, etc.).",
+    "STEP 5: Add Logic. Hook up the metadata extraction logic (navigator object, etc.) to the widgets.",
+    "STEP 6: Add Export & Details. Create the Export Modal and detailed view for each category."
+  ]
+}
