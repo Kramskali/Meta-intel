@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime, timezone
 
@@ -27,44 +27,84 @@ api_router = APIRouter(prefix="/api")
 
 
 # Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
+class MetadataSnapshot(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
+    client_metadata: Dict[str, Any]
+    server_metadata: Dict[str, Any]
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+class MetadataSnapshotCreate(BaseModel):
+    client: Dict[str, Any]
+    server: Optional[Dict[str, Any]] = None
 
-# Add your routes to the router instead of directly to app
+
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Device Metadata API"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
+
+@api_router.get("/metadata/collect")
+async def collect_metadata(request: Request):
+    """
+    Collect server-side metadata from the request
+    """
+    # Extract client IP (considering proxy headers)
+    client_ip = request.client.host
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        client_ip = forwarded_for.split(",")[0].strip()
+    
+    metadata = {
+        "ip_address": client_ip,
+        "user_agent": request.headers.get("user-agent", "N/A"),
+        "accept_language": request.headers.get("accept-language", "N/A"),
+        "accept_encoding": request.headers.get("accept-encoding", "N/A"),
+        "referer": request.headers.get("referer", "N/A"),
+        "origin": request.headers.get("origin", "N/A"),
+        "connection": request.headers.get("connection", "N/A"),
+        "sec_fetch_site": request.headers.get("sec-fetch-site", "N/A"),
+        "sec_fetch_mode": request.headers.get("sec-fetch-mode", "N/A"),
+        "sec_fetch_dest": request.headers.get("sec-fetch-dest", "N/A"),
+        "host": request.headers.get("host", "N/A"),
+    }
+    
+    return metadata
+
+
+@api_router.post("/metadata/save", response_model=MetadataSnapshot)
+async def save_metadata(input: MetadataSnapshotCreate):
+    """
+    Save a metadata snapshot to the database
+    """
+    snapshot_obj = MetadataSnapshot(
+        client_metadata=input.client,
+        server_metadata=input.server or {}
+    )
     
     # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
+    doc = snapshot_obj.model_dump()
     doc['timestamp'] = doc['timestamp'].isoformat()
     
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
+    _ = await db.metadata_snapshots.insert_one(doc)
+    return snapshot_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
+
+@api_router.get("/metadata/history", response_model=List[MetadataSnapshot])
+async def get_metadata_history():
+    """
+    Get all saved metadata snapshots
+    """
+    snapshots = await db.metadata_snapshots.find({}, {"_id": 0}).to_list(100)
     
     # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
+    for snapshot in snapshots:
+        if isinstance(snapshot['timestamp'], str):
+            snapshot['timestamp'] = datetime.fromisoformat(snapshot['timestamp'])
     
-    return status_checks
+    return snapshots
+
 
 # Include the router in the main app
 app.include_router(api_router)
