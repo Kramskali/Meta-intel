@@ -37,3 +37,7 @@ Thumbs.db
 .cache/
 .pytest_cache/
 /test_reports/
+-e 
+# Environment files
+*.env
+*.env.*
