@@ -19,8 +19,24 @@ load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db_name = os.environ['DB_NAME']
+
+# X.509 Certificate Support
+cert_path = os.environ.get('MONGODB_CERT_PATH')
+
+if cert_path and os.path.exists(cert_path):
+    # Use X.509 Certificate Authentication
+    client = AsyncIOMotorClient(
+        mongo_url,
+        tls=True,
+        tlsCertificateKeyFile=cert_path,
+        authMechanism='MONGODB-X509'
+    )
+else:
+    # Use Standard Username/Password Authentication
+    client = AsyncIOMotorClient(mongo_url)
+
+db = client[db_name]
 
 # Create the main app without a prefix
 app = FastAPI()
