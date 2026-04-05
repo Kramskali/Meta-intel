@@ -4,20 +4,23 @@
 
 ---
 
-## 🚀 Secure 1-Click Deployment
+## 🚀 Secure 1-Click Deployment (X.509 Certificate)
 
-Deploy your own instance of Meta Intel securely using environment variables. **No secrets are stored in the code.**
+Deploy your own instance of Meta Intel securely using **X.509 Certificate Authentication** for MongoDB.
 
 ### **Step 1: Deploy Backend (Railway)**
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/Kramskali/Meta-intel&envs=MONGO_URL,DB_NAME,CORS_ORIGINS,PAYPAL_CLIENT_ID,PAYPAL_SECRET,PAYPAL_MODE)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/Kramskali/Meta-intel&envs=MONGO_URL,DB_NAME,CORS_ORIGINS,PAYPAL_CLIENT_ID,PAYPAL_SECRET,PAYPAL_MODE,MONGODB_CERT_PATH)
 
 When prompted, enter the following **Environment Variables**:
-- `MONGO_URL`: Your MongoDB Atlas connection string.
+- `MONGO_URL`: `mongodb+srv://cluster1.cqt1gzx.mongodb.net/?authMechanism=MONGODB-X509&authSource=%24external&tls=true`
 - `DB_NAME`: `device_intel_prod`
 - `CORS_ORIGINS`: `https://metaintel.com`
 - `PAYPAL_CLIENT_ID`: Your PayPal Live Client ID.
 - `PAYPAL_SECRET`: Your PayPal Live Secret.
 - `PAYPAL_MODE`: `live`
+- `MONGODB_CERT_PATH`: `/app/backend/cert.pem`
+
+**Important**: You must upload your `.pem` certificate file to the `/app/backend/cert.pem` path in your Railway deployment.
 
 ### **Step 2: Deploy Frontend (Vercel)**
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Kramskali/Meta-intel&env=REACT_APP_BACKEND_URL&root-directory=frontend)
@@ -29,9 +32,9 @@ When prompted, enter the following **Environment Variable**:
 
 ## 🔒 Security First
 
-- **Zero Secrets in Code**: All sensitive credentials (PayPal, MongoDB) are handled via secure environment variables on the hosting platform.
+- **X.509 Certificate Auth**: Uses public-key cryptography for the most secure database connection possible.
+- **Zero Secrets in Code**: All sensitive credentials are handled via secure environment variables.
 - **Git History Cleaned**: The repository history has been scrubbed to ensure no previous secrets remain.
-- **Encrypted Metadata**: All user data is encrypted at rest in MongoDB.
 
 ---
 
