@@ -20,6 +20,7 @@ const PaymentSuccess = () => {
 
   useEffect(() => {
     checkPaymentStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkPaymentStatus = async () => {
