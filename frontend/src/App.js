@@ -3,6 +3,7 @@ import '@/App.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Dashboard from '@/components/Dashboard';
 import PaymentSuccess from '@/components/PaymentSuccess';
+import { Analytics } from '@vercel/analytics/react';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
           <Route path="/success" element={<PaymentSuccess />} />
         </Routes>
       </BrowserRouter>
+      <Analytics />
     </div>
   );
 }
