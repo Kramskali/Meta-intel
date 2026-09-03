@@ -41,6 +41,12 @@ db = client[db_name]
 # Create the main app without a prefix
 app = FastAPI()
 
+@app.get("/health")
+async def health_check():
+    """Return a lightweight readiness response for Railway health checks."""
+    return {"status": "ok"}
+
+
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
