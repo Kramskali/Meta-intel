@@ -7,10 +7,11 @@ __pycache__/
 venv/
 ENV/
 
-# Environment variables
+# Environment variables and local secrets
 .env
-.env.local
-.env.production
+.env.*
+*.env
+*.pem
 
 # Build outputs
 /frontend/build/
@@ -28,20 +29,12 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Testing
+# Testing and temporary output
 /coverage/
 .nyc_output/
-
-# Misc
-*.pem
+/test_reports/
 .cache/
 .pytest_cache/
-/test_reports/
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*
+
+# Local agent configuration
+.gitconfig
