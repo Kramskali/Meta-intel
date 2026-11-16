@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, Zap, Crown, CreditCard } from 'lucide-react';
+import { Check, Zap, Crown } from 'lucide-react';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -17,7 +17,7 @@ const API = `${BACKEND_URL}/api`;
 
 const PricingModal = ({ open, onClose }) => {
   const [loading, setLoading] = useState(false);
-  const [paymentProvider, setPaymentProvider] = useState('stripe');
+  const [paymentProvider, setPaymentProvider] = useState('paypal');
 
   const handleSubscribe = async (plan) => {
     setLoading(true);
@@ -112,29 +112,10 @@ const PricingModal = ({ open, onClose }) => {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Payment Provider Selector */}
         <div className="flex justify-center gap-4 mt-4">
           <Button
-            variant={paymentProvider === 'stripe' ? 'default' : 'outline'}
-            onClick={() => setPaymentProvider('stripe')}
-            className={`font-heading uppercase tracking-wider ${
-              paymentProvider === 'stripe'
-                ? 'bg-cyan-600 text-white'
-                : 'bg-zinc-800 text-zinc-400'
-            }`}
-            data-testid="payment-provider-stripe"
-          >
-            <CreditCard className="w-4 h-4 mr-2" />
-            Stripe (Card)
-          </Button>
-          <Button
-            variant={paymentProvider === 'paypal' ? 'default' : 'outline'}
-            onClick={() => setPaymentProvider('paypal')}
-            className={`font-heading uppercase tracking-wider ${
-              paymentProvider === 'paypal'
-                ? 'bg-blue-600 text-white'
-                : 'bg-zinc-800 text-zinc-400'
-            }`}
+            variant="default"
+            className="font-heading uppercase tracking-wider bg-blue-600 text-white"
             data-testid="payment-provider-paypal"
           >
             PayPal

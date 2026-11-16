@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime, timezone
-from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 from paypalcheckoutsdk.core import PayPalHttpClient, SandboxEnvironment, LiveEnvironment
 from paypalcheckoutsdk.orders import OrdersCreateRequest, OrdersCaptureRequest, OrdersGetRequest
 
@@ -43,7 +42,7 @@ app = FastAPI()
 
 @app.get("/health")
 async def health_check():
-    """Return a lightweight readiness response for Railway health checks."""
+    """Return a lightweight readiness response for the hosting health check."""
     return {"status": "ok"}
 
 
@@ -92,7 +91,7 @@ class MetadataSnapshotCreate(BaseModel):
 class CheckoutRequest(BaseModel):
     plan: str
     origin_url: str
-    provider: str = 'stripe'  # 'stripe' or 'paypal'
+    provider: str = 'paypal'
 
 class PaymentTransaction(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -178,7 +177,7 @@ async def get_metadata_history(user_id: Optional[str] = None):
 @api_router.post("/payments/checkout")
 async def create_checkout(request: Request, checkout_req: CheckoutRequest):
     """
-    Create Stripe or PayPal checkout session for subscription
+    Create a Stripe or PayPal checkout session.
     """
     if checkout_req.plan not in PRICING_PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan selected")
@@ -198,47 +197,8 @@ async def create_checkout(request: Request, checkout_req: CheckoutRequest):
 
 
 async def create_stripe_checkout(request: Request, checkout_req: CheckoutRequest, plan_info: dict, amount: float):
-    """
-    Create Stripe checkout session
-    """
-    host_url = checkout_req.origin_url
-    webhook_url = f"{str(request.base_url).rstrip('/')}/api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
-    
-    success_url = f"{host_url}/success?session_id={{CHECKOUT_SESSION_ID}}&provider=stripe"
-    cancel_url = f"{host_url}/"
-    
-    checkout_request = CheckoutSessionRequest(
-        amount=amount,
-        currency="usd",
-        success_url=success_url,
-        cancel_url=cancel_url,
-        metadata={
-            "plan": checkout_req.plan,
-            "plan_name": plan_info['name']
-        }
-    )
-    
-    session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(checkout_request)
-    
-    transaction = PaymentTransaction(
-        session_id=session.session_id,
-        plan=checkout_req.plan,
-        amount=amount,
-        currency="usd",
-        payment_status="pending",
-        metadata={
-            "plan_name": plan_info['name'],
-            "provider": "stripe"
-        }
-    )
-    
-    doc = transaction.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    await db.payment_transactions.insert_one(doc)
-    
-    return {"url": session.url, "session_id": session.session_id, "provider": "stripe"}
-
+    """Stripe is not configured in the standalone deployment."""
+    raise HTTPException(status_code=503, detail="Stripe is not available. Use PayPal.")
 
 async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, plan_info: dict, amount: float):
     """
@@ -326,64 +286,14 @@ async def capture_paypal_order(order_id: str):
 
 @api_router.get("/payments/status/{session_id}")
 async def get_payment_status(request: Request, session_id: str):
-    """
-    Get payment status from Stripe
-    """
-    host_url = str(request.base_url)
-    webhook_url = f"{host_url.rstrip('/')}/api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
-    
-    try:
-        status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(session_id)
-        
-        # Update transaction in database
-        existing_transaction = await db.payment_transactions.find_one(
-            {"session_id": session_id},
-            {"_id": 0}
-        )
-        
-        if existing_transaction and existing_transaction['payment_status'] != status.payment_status:
-            await db.payment_transactions.update_one(
-                {"session_id": session_id},
-                {"$set": {"payment_status": status.payment_status}}
-            )
-        
-        return {
-            "session_id": session_id,
-            "payment_status": status.payment_status,
-            "status": status.status,
-            "amount": status.amount_total / 100,  # Convert cents to dollars
-            "currency": status.currency,
-            "metadata": status.metadata
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """Stripe payment status is unavailable in the standalone deployment."""
+    raise HTTPException(status_code=503, detail="Stripe is not available. Use PayPal.")
 
 
 @api_router.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
-    """
-    Handle Stripe webhook events
-    """
-    host_url = str(request.base_url)
-    webhook_url = f"{host_url.rstrip('/')}/api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
-    
-    body = await request.body()
-    signature = request.headers.get("Stripe-Signature")
-    
-    try:
-        webhook_response = await stripe_checkout.handle_webhook(body, signature)
-        
-        # Update payment transaction
-        await db.payment_transactions.update_one(
-            {"session_id": webhook_response.session_id},
-            {"$set": {"payment_status": webhook_response.payment_status}}
-        )
-        
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """Stripe webhooks are unavailable in the standalone deployment."""
+    raise HTTPException(status_code=503, detail="Stripe is not available. Use PayPal.")
 
 
 # Include the router in the main app
