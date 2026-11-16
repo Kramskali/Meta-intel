@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: meta-intel-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: device_intel_prod
+      - key: MONGODB_CERT_PATH
+        value: /etc/secrets/mongo-x509.pem
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_SECRET
+        sync: false
+      - key: PAYPAL_MODE
+        value: live
+      - key: CORS_ORIGINS
+        value: https://meta-intel.vercel.app,https://metaintel.com,https://www.metaintel.com
