@@ -62,7 +62,7 @@ const PricingModal = ({ open, onClose }) => {
       id: 'pro',
       name: 'Pro',
       price: 9,
-      period: 'month',
+      period: 'one-time',
       description: 'For privacy-conscious individuals',
       features: [
         'Unlimited scans',
@@ -73,7 +73,7 @@ const PricingModal = ({ open, onClose }) => {
         'Priority support'
       ],
       limited: [],
-      cta: 'Upgrade to Pro',
+      cta: 'Buy Pro',
       disabled: false,
       icon: Zap,
       popular: true
@@ -82,7 +82,7 @@ const PricingModal = ({ open, onClose }) => {
       id: 'enterprise',
       name: 'Enterprise',
       price: 29,
-      period: 'month',
+      period: 'one-time',
       description: 'For teams and businesses',
       features: [
         'Everything in Pro',
@@ -94,7 +94,7 @@ const PricingModal = ({ open, onClose }) => {
         'Dedicated support'
       ],
       limited: [],
-      cta: 'Go Enterprise',
+      cta: 'Buy Enterprise',
       disabled: false,
       icon: Crown
     }
@@ -182,7 +182,7 @@ const PricingModal = ({ open, onClose }) => {
 
         <div className="text-center mt-6 text-xs text-zinc-600">
           <p>All plans include end-to-end encryption and data privacy protection.</p>
-          <p className="mt-1">Cancel anytime. No questions asked.</p>
+          <p className="mt-1">One-time payments. No recurring charges.</p>
         </div>
       </DialogContent>
     </Dialog>
