@@ -16,26 +16,25 @@ from paypalcheckoutsdk.orders import OrdersCreateRequest, OrdersCaptureRequest, 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-db_name = os.environ['DB_NAME']
-
-# X.509 Certificate Support
+# Database and payment clients are optional at startup so /health can report
+# configuration problems without crashing the whole service.
+mongo_url = os.environ.get('MONGO_URL')
+db_name = os.environ.get('DB_NAME', 'device_intel_prod')
 cert_path = os.environ.get('MONGODB_CERT_PATH')
+client = None
+db = None
 
-if cert_path and os.path.exists(cert_path):
-    # Use X.509 Certificate Authentication
-    client = AsyncIOMotorClient(
-        mongo_url,
-        tls=True,
-        tlsCertificateKeyFile=cert_path,
-        authMechanism='MONGODB-X509'
-    )
-else:
-    # Use Standard Username/Password Authentication
-    client = AsyncIOMotorClient(mongo_url)
-
-db = client[db_name]
+if mongo_url:
+    if cert_path and os.path.exists(cert_path):
+        client = AsyncIOMotorClient(
+            mongo_url,
+            tls=True,
+            tlsCertificateKeyFile=cert_path,
+            authMechanism='MONGODB-X509'
+        )
+    else:
+        client = AsyncIOMotorClient(mongo_url)
+    db = client[db_name]
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -43,7 +42,11 @@ app = FastAPI()
 @app.get("/health")
 async def health_check():
     """Return a lightweight readiness response for the hosting health check."""
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "database_configured": db is not None,
+        "paypal_configured": all([PAYPAL_CLIENT_ID, PAYPAL_SECRET]),
+    }
 
 
 # Create a router with the /api prefix
@@ -57,13 +60,26 @@ PAYPAL_CLIENT_ID = os.environ.get('PAYPAL_CLIENT_ID')
 PAYPAL_SECRET = os.environ.get('PAYPAL_SECRET')
 PAYPAL_MODE = os.environ.get('PAYPAL_MODE', 'sandbox')
 
-# Initialize PayPal client
-if PAYPAL_MODE == 'live':
-    paypal_environment = LiveEnvironment(client_id=PAYPAL_CLIENT_ID, client_secret=PAYPAL_SECRET)
-else:
-    paypal_environment = SandboxEnvironment(client_id=PAYPAL_CLIENT_ID, client_secret=PAYPAL_SECRET)
+# Initialize PayPal only when both protected settings are present.
+paypal_client = None
+if PAYPAL_CLIENT_ID and PAYPAL_SECRET:
+    if PAYPAL_MODE == 'live':
+        paypal_environment = LiveEnvironment(client_id=PAYPAL_CLIENT_ID, client_secret=PAYPAL_SECRET)
+    else:
+        paypal_environment = SandboxEnvironment(client_id=PAYPAL_CLIENT_ID, client_secret=PAYPAL_SECRET)
+    paypal_client = PayPalHttpClient(paypal_environment)
 
-paypal_client = PayPalHttpClient(paypal_environment)
+
+def require_db():
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database is not configured")
+    return db
+
+
+def require_paypal():
+    if paypal_client is None:
+        raise HTTPException(status_code=503, detail="PayPal is not configured")
+    return paypal_client
 
 # Pricing plans
 PRICING_PLANS = {
@@ -152,7 +168,8 @@ async def save_metadata(input: MetadataSnapshotCreate):
     doc = snapshot_obj.model_dump()
     doc['timestamp'] = doc['timestamp'].isoformat()
     
-    _ = await db.metadata_snapshots.insert_one(doc)
+    database = require_db()
+    _ = await database.metadata_snapshots.insert_one(doc)
     return snapshot_obj
 
 
@@ -165,7 +182,8 @@ async def get_metadata_history(user_id: Optional[str] = None):
     if user_id:
         query['user_id'] = user_id
     
-    snapshots = await db.metadata_snapshots.find(query, {"_id": 0}).sort("timestamp", -1).to_list(100)
+    database = require_db()
+    snapshots = await database.metadata_snapshots.find(query, {"_id": 0}).sort("timestamp", -1).to_list(100)
     
     for snapshot in snapshots:
         if isinstance(snapshot['timestamp'], str):
@@ -204,6 +222,8 @@ async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, p
     """
     Create PayPal order
     """
+    paypal = require_paypal()
+    database = require_db()
     order_request = OrdersCreateRequest()
     order_request.prefer('return=representation')
     
@@ -226,7 +246,7 @@ async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, p
     })
     
     try:
-        response = paypal_client.execute(order_request)
+        response = paypal.execute(order_request)
         order_id = response.result.id
         
         # Find approval URL
@@ -236,6 +256,9 @@ async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, p
                 approval_url = link.href
                 break
         
+        if not approval_url:
+            raise HTTPException(status_code=502, detail="PayPal did not return an approval URL")
+
         # Create transaction record
         transaction = PaymentTransaction(
             session_id=order_id,
@@ -251,12 +274,15 @@ async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, p
         
         doc = transaction.model_dump()
         doc['timestamp'] = doc['timestamp'].isoformat()
-        await db.payment_transactions.insert_one(doc)
+        await database.payment_transactions.insert_one(doc)
         
         return {"url": approval_url, "order_id": order_id, "provider": "paypal"}
     
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"PayPal error: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("PayPal order creation failed")
+        raise HTTPException(status_code=502, detail="PayPal order creation failed")
 
 
 @api_router.post("/payments/paypal/capture/{order_id}")
@@ -264,13 +290,15 @@ async def capture_paypal_order(order_id: str):
     """
     Capture PayPal order after approval
     """
+    paypal = require_paypal()
+    database = require_db()
     capture_request = OrdersCaptureRequest(order_id)
     
     try:
-        response = paypal_client.execute(capture_request)
+        response = paypal.execute(capture_request)
         
         # Update transaction
-        await db.payment_transactions.update_one(
+        await database.payment_transactions.update_one(
             {"session_id": order_id},
             {"$set": {"payment_status": response.result.status.lower()}}
         )
@@ -280,8 +308,11 @@ async def capture_paypal_order(order_id: str):
             "status": response.result.status,
             "payer_email": response.result.payer.email_address if hasattr(response.result, 'payer') else None
         }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"PayPal capture error: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("PayPal capture failed for order %s", order_id)
+        raise HTTPException(status_code=502, detail="PayPal capture failed")
 
 
 @api_router.get("/payments/status/{session_id}")
@@ -315,4 +346,5 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client is not None:
+        client.close()
