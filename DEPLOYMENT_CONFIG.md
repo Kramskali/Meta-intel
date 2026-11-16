@@ -1,67 +1,53 @@
 # Device Intel - Deployment Configuration
 
+## Security Notice
+
+Credential values were removed from this public document on 2026-11-16. Rotate the previously exposed PayPal secret before deploying. Store replacement credentials only in the hosting provider's protected environment settings. Never commit them to GitHub.
+
 ## Configuration Status
 
-### ✅ Confirmed
+### Documented
 - **Domain**: metaintel.com
-- **Payment Provider**: PayPal (Live)
-- **PayPal Client ID**: Provided
-- **PayPal Secret**: Provided
+- **Payment Provider**: PayPal (Live mode intended)
+- **PayPal Client ID**: Set directly in Railway; not stored here
+- **PayPal Secret**: Rotate and set directly in Railway; not stored here
 
-### ⏳ Pending
-- **MongoDB Atlas**: Needs to be created
-- **Deployment Platform**: Ready for Railway or AWS
-
----
-
-## Next Steps When User Returns
-
-1. **Create MongoDB Atlas** (5 minutes)
-   - Go to https://mongodb.com/cloud/atlas
-   - Create free account
-   - Create M0 cluster
-   - Get connection string
-
-2. **Deploy Backend** (15 minutes)
-   - Push to GitHub
-   - Deploy to Railway
-   - Add environment variables
-
-3. **Deploy Frontend** (15 minutes)
-   - Deploy to Vercel
-   - Connect domain
-   - Enable SSL
-
-4. **Test Payments** (10 minutes)
-   - Visit metaintel.com
-   - Test PayPal payment flow
-
-5. **Go Live** (Throughout day)
-   - Product Hunt
-   - Reddit
-   - Social media
+### Pending Verification
+- **MongoDB Atlas**: Cluster and X.509 certificate setup require verification
+- **Deployment Platform**: Railway and Vercel configuration exists; live deployment status requires verification
 
 ---
 
-## Environment Variables Ready
+## Next Steps
+
+1. **Verify MongoDB Atlas**
+   - Confirm the cluster exists.
+   - Install the X.509 certificate through Railway's protected file or secret mechanism.
+   - Set the connection string in Railway.
+
+2. **Verify or Deploy the Backend**
+   - Connect the GitHub repository to Railway if no service exists.
+   - Add environment variables through Railway's protected settings.
+   - Verify the `/health` endpoint.
+
+3. **Verify or Deploy the Frontend**
+   - Connect the `frontend` directory to Vercel if no project exists.
+   - Set `REACT_APP_BACKEND_URL` to the verified Railway backend URL.
+   - Verify the Vercel deployment and domain configuration.
+
+4. **Test Payments**
+   - Confirm server-side order creation and capture verification.
+   - Test the complete payment flow before claiming payments are operational.
+
+---
+
+## Environment Variable Names
+
+Fill in the values only in Railway's protected environment settings. Do not commit the values.
 
 ```
-PAYPAL_CLIENT_ID=AVshjqaYbr9e5WKaheheaDJZHQUf1JYQbrOaCqVUjphzvv6H1zFzY68gwY9E4aPMxayza___HIbHWede
-PAYPAL_SECRET=EF30NJR2foysw1fJnOLuIbg8Ygc3hN95VHhdV9otT0MaaUBaJI9zPw5G2fupITYfjzmOwtcB3ZJ0ihbr
+PAYPAL_CLIENT_ID=YOUR_PAYPAL_CLIENT_ID
+PAYPAL_SECRET=YOUR_ROTATED_PAYPAL_SECRET
 PAYPAL_MODE=live
 DOMAIN=metaintel.com
 ```
-
----
-
-## Timeline
-
-- **MongoDB Setup**: 5 minutes
-- **Backend Deployment**: 15 minutes
-- **Frontend Deployment**: 15 minutes
-- **Payment Testing**: 10 minutes
-- **Total**: ~45 minutes to live
-
----
-
-Ready to deploy when user returns!
