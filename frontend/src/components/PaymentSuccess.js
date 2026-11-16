@@ -72,7 +72,7 @@ const PaymentSuccess = () => {
           {status === 'pending' && (
             <>
               <Loader2 className="w-16 h-16 mx-auto mb-4 text-yellow-400 animate-spin" />
-              <h2 className="font-heading text-2xl font-bold text-white mb-2">Processing Payment...</h2>
+              <h2 className="font-heading text-2xl font-bold text-yellow-400 mb-2">Processing Payment...</h2>
               <p className="text-zinc-400">Your payment is being processed. This may take a moment.</p>
             </>
           )}
@@ -82,7 +82,7 @@ const PaymentSuccess = () => {
               <CheckCircle className="w-16 h-16 mx-auto mb-4 text-emerald-400" />
               <h2 className="font-heading text-2xl font-bold text-emerald-400 mb-2">Payment Successful!</h2>
               <p className="text-zinc-400 mb-6">
-                Thank you for upgrading to Pro! Your account has been activated.
+                Your PayPal payment was captured and the transaction was recorded.
               </p>
               {paymentInfo && (
                 <div className="bg-zinc-900/50 border border-zinc-800 rounded p-4 mb-6 text-left">
