@@ -29,12 +29,11 @@ import {
   Info,
   Activity,
   Clock,
-  Crown,
+  Unlock,
   AlertTriangle,
 } from 'lucide-react';
 import { collectAllMetadata, getMetadataExplanations } from '@/utils/metadataCollector';
 import { calculatePrivacyScore } from '@/utils/privacyScorer';
-import PricingModal from '@/components/PricingModal';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -112,7 +111,6 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [serverMetadata, setServerMetadata] = useState(null);
   const [privacyScore, setPrivacyScore] = useState(null);
-  const [showPricing, setShowPricing] = useState(false);
   const explanations = getMetadataExplanations();
 
   const loadMetadata = async () => {
@@ -196,14 +194,10 @@ const Dashboard = () => {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setShowPricing(true)}
-              className="font-heading uppercase tracking-wider text-xs bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-[0_0_20px_rgba(6,182,212,0.4)]"
-              data-testid="upgrade-button"
-            >
-              <Crown className="w-4 h-4 mr-2" />
-              Upgrade to Pro
-            </Button>
+            <Badge className="font-heading uppercase tracking-wider text-xs bg-emerald-950/40 text-emerald-400 border border-emerald-900/50 px-3 py-1.5" data-testid="free-badge">
+              <Unlock className="w-4 h-4 mr-2" />
+              100% Free - Full Access
+            </Badge>
             <Button
               variant="ghost"
               size="sm"
@@ -247,6 +241,7 @@ const Dashboard = () => {
                 This dashboard shows all metadata that websites can collect from your device. Every field includes an explanation
                 of what it is and how it's typically used. Hover over the <Info className="w-3 h-3 inline" /> icon for details.
                 This data can be used for analytics, personalization, security, and unfortunately, fingerprinting.
+                Everything here is free - the full report, every field, every recommendation.
               </p>
             </div>
           </div>
@@ -266,7 +261,7 @@ const Dashboard = () => {
               <CardHeader className="border-b border-zinc-800/50 bg-zinc-900/20 relative z-10">
                 <CardTitle className="font-heading font-semibold text-xl tracking-wide text-cyan-400 flex items-center gap-2">
                   <Shield className="w-5 h-5" />
-                  Privacy Score
+                  Privacy Score - Full Report
                   <Badge className={`ml-auto font-heading text-lg px-3 py-1 ${
                     privacyScore.grade === 'A' ? 'bg-emerald-600' :
                     privacyScore.grade === 'B' ? 'bg-cyan-600' :
@@ -294,16 +289,23 @@ const Dashboard = () => {
                     <p className="text-zinc-300 leading-relaxed">{privacyScore.summary}</p>
                     {privacyScore.issues.length > 0 && (
                       <div className="mt-3">
-                        <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2 font-mono">Top Issues:</p>
-                        <div className="space-y-1">
-                          {privacyScore.issues.slice(0, 3).map((issue, idx) => (
-                            <div key={idx} className="flex items-start gap-2">
-                              <AlertTriangle className={`w-3 h-3 flex-shrink-0 mt-0.5 ${
-                                issue.severity === 'high' ? 'text-red-400' :
-                                issue.severity === 'medium' ? 'text-yellow-400' :
-                                'text-blue-400'
-                              }`} />
-                              <span className="text-xs text-zinc-400">{issue.issue}</span>
+                        <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2 font-mono">Issues and Fixes:</p>
+                        <div className="space-y-2">
+                          {privacyScore.issues.map((issue, idx) => (
+                            <div key={idx} className="bg-zinc-900/40 border border-zinc-800/50 rounded-sm p-3">
+                              <div className="flex items-start gap-2">
+                                <AlertTriangle className={`w-3 h-3 flex-shrink-0 mt-0.5 ${
+                                  issue.severity === 'high' ? 'text-red-400' :
+                                  issue.severity === 'medium' ? 'text-yellow-400' :
+                                  'text-blue-400'
+                                }`} />
+                                <span className="text-xs text-zinc-300">{issue.issue}</span>
+                              </div>
+                              {issue.recommendation && (
+                                <p className="text-xs text-cyan-400/80 mt-1 ml-5">
+                                  Fix: {issue.recommendation}
+                                </p>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -311,14 +313,6 @@ const Dashboard = () => {
                     )}
                   </div>
                 </div>
-                <Button
-                  onClick={() => setShowPricing(true)}
-                  className="w-full font-heading uppercase tracking-wider text-xs bg-cyan-600 hover:bg-cyan-500 text-white"
-                  data-testid="unlock-recommendations-button"
-                >
-                  <Crown className="w-4 h-4 mr-2" />
-                  Unlock Full Report & Recommendations
-                </Button>
               </CardContent>
             </Card>
           )}
@@ -429,12 +423,9 @@ const Dashboard = () => {
         {/* Footer Info */}
         <div className="mt-12 text-center text-zinc-600 text-sm font-mono" data-testid="footer">
           <p>All data collection happens locally in your browser and on our server.</p>
-          <p className="mt-2">No data is shared with third parties. Use Export to save your report.</p>
+          <p className="mt-2">No data is shared with third parties. Free proof of concept - use Export to save your report.</p>
         </div>
       </main>
-
-      {/* Pricing Modal */}
-      <PricingModal open={showPricing} onClose={() => setShowPricing(false)} />
     </div>
   );
 };
