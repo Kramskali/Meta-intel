@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Request, HTTPException
+from fastapi import FastAPI, APIRouter, Request, HTTPException, Header, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -36,25 +36,6 @@ if mongo_url:
         client = AsyncIOMotorClient(mongo_url)
     db = client[db_name]
 
-# Create the main app without a prefix
-app = FastAPI()
-
-@app.get("/health")
-async def health_check():
-    """Return a lightweight readiness response for the hosting health check."""
-    return {
-        "status": "ok",
-        "database_configured": db is not None,
-        "paypal_configured": all([PAYPAL_CLIENT_ID, PAYPAL_SECRET]),
-    }
-
-
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
-
-# Stripe configuration
-STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')
-
 # PayPal configuration
 PAYPAL_CLIENT_ID = os.environ.get('PAYPAL_CLIENT_ID')
 PAYPAL_SECRET = os.environ.get('PAYPAL_SECRET')
@@ -68,6 +49,41 @@ if PAYPAL_CLIENT_ID and PAYPAL_SECRET:
     else:
         paypal_environment = SandboxEnvironment(client_id=PAYPAL_CLIENT_ID, client_secret=PAYPAL_SECRET)
     paypal_client = PayPalHttpClient(paypal_environment)
+
+# Optional shared-secret gate for state-changing / data-returning endpoints.
+# Fail-closed: if API_KEY is not configured, protected endpoints return 503.
+API_KEY = os.environ.get('API_KEY')
+
+async def require_api_key(x_api_key: Optional[str] = Header(default=None)):
+    if not API_KEY:
+        raise HTTPException(status_code=503, detail="Endpoint disabled: API_KEY not configured")
+    if not x_api_key or x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+# Create the main app without a prefix
+app = FastAPI()
+
+@app.get("/health")
+async def health_check():
+    """Readiness probe: verifies the database actually answers, not just that
+    a client object was constructed."""
+    db_reachable = False
+    if db is not None:
+        try:
+            await db.command("ping")
+            db_reachable = True
+        except Exception:
+            db_reachable = False
+    return {
+        "status": "ok",
+        "database_configured": db is not None,
+        "database_reachable": db_reachable,
+        "paypal_configured": all([PAYPAL_CLIENT_ID, PAYPAL_SECRET]),
+    }
+
+
+# Create a router with the /api prefix
+api_router = APIRouter(prefix="/api")
 
 
 def require_db():
@@ -92,7 +108,7 @@ PRICING_PLANS = {
 # Define Models
 class MetadataSnapshot(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     client_metadata: Dict[str, Any]
     server_metadata: Dict[str, Any]
@@ -111,7 +127,7 @@ class CheckoutRequest(BaseModel):
 
 class PaymentTransaction(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     session_id: str
     plan: str
@@ -130,15 +146,18 @@ async def root():
 @api_router.get("/metadata/collect")
 async def collect_metadata(request: Request):
     """
-    Collect server-side metadata from the request
+    Report server-side metadata from the request. Both the socket peer and
+    the X-Forwarded-For header are reported separately and labeled, because
+    X-Forwarded-For is client-supplied and freely spoofable; showing that
+    difference is part of what this tool teaches.
     """
-    client_ip = request.client.host
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        client_ip = forwarded_for.split(",")[0].strip()
-    
+    socket_ip = request.client.host if request.client else "N/A"
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+
     metadata = {
-        "ip_address": client_ip,
+        "connection_ip": socket_ip,
+        "x_forwarded_for_raw": forwarded_for,
+        "ip_note": "connection_ip is the peer this server actually talks to (on Render, the edge proxy). x_forwarded_for_raw is a request header any client can set to any value; never trust it as identity.",
         "user_agent": request.headers.get("user-agent", "N/A"),
         "accept_language": request.headers.get("accept-language", "N/A"),
         "accept_encoding": request.headers.get("accept-encoding", "N/A"),
@@ -150,73 +169,73 @@ async def collect_metadata(request: Request):
         "sec_fetch_dest": request.headers.get("sec-fetch-dest", "N/A"),
         "host": request.headers.get("host", "N/A"),
     }
-    
+
     return metadata
 
 
-@api_router.post("/metadata/save", response_model=MetadataSnapshot)
+@api_router.post("/metadata/save", response_model=MetadataSnapshot,
+                 dependencies=[Depends(require_api_key)])
 async def save_metadata(input: MetadataSnapshotCreate):
     """
-    Save a metadata snapshot to the database
+    Save a metadata snapshot to the database. Protected: requires X-API-Key.
     """
     snapshot_obj = MetadataSnapshot(
         client_metadata=input.client,
         server_metadata=input.server or {},
         user_id=input.user_id
     )
-    
+
     doc = snapshot_obj.model_dump()
     doc['timestamp'] = doc['timestamp'].isoformat()
-    
+
     database = require_db()
     _ = await database.metadata_snapshots.insert_one(doc)
     return snapshot_obj
 
 
-@api_router.get("/metadata/history", response_model=List[MetadataSnapshot])
+@api_router.get("/metadata/history", response_model=List[MetadataSnapshot],
+                dependencies=[Depends(require_api_key)])
 async def get_metadata_history(user_id: Optional[str] = None):
     """
-    Get all saved metadata snapshots
+    Get saved metadata snapshots. Protected: requires X-API-Key.
+    A user_id query parameter is required; unscoped reads are not served.
     """
-    query = {}
-    if user_id:
-        query['user_id'] = user_id
-    
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
     database = require_db()
-    snapshots = await database.metadata_snapshots.find(query, {"_id": 0}).sort("timestamp", -1).to_list(100)
-    
+    snapshots = await database.metadata_snapshots.find(
+        {"user_id": user_id}, {"_id": 0}
+    ).sort("timestamp", -1).to_list(100)
+
     for snapshot in snapshots:
         if isinstance(snapshot['timestamp'], str):
             snapshot['timestamp'] = datetime.fromisoformat(snapshot['timestamp'])
-    
+
     return snapshots
 
 
 @api_router.post("/payments/checkout")
 async def create_checkout(request: Request, checkout_req: CheckoutRequest):
     """
-    Create a Stripe or PayPal checkout session.
+    Create a PayPal checkout order.
     """
     if checkout_req.plan not in PRICING_PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan selected")
-    
+
     if checkout_req.plan == 'free':
         raise HTTPException(status_code=400, detail="Free plan doesn't require payment")
-    
+
     plan_info = PRICING_PLANS[checkout_req.plan]
     amount = plan_info['price']
-    
+
     if checkout_req.provider == 'stripe':
-        return await create_stripe_checkout(request, checkout_req, plan_info, amount)
+        raise HTTPException(status_code=503, detail="Stripe is not available. Use PayPal.")
     elif checkout_req.provider == 'paypal':
         return await create_paypal_order(request, checkout_req, plan_info, amount)
     else:
         raise HTTPException(status_code=400, detail="Invalid payment provider")
 
-
-async def create_stripe_checkout(request: Request, checkout_req: CheckoutRequest, plan_info: dict, amount: float):
-    """Stripe is not configured in the standalone deployment."""
-    raise HTTPException(status_code=503, detail="Stripe is not available. Use PayPal.")
 
 async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, plan_info: dict, amount: float):
     """
@@ -226,7 +245,7 @@ async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, p
     database = require_db()
     order_request = OrdersCreateRequest()
     order_request.prefer('return=representation')
-    
+
     order_request.request_body({
         "intent": "CAPTURE",
         "purchase_units": [{
@@ -244,18 +263,18 @@ async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, p
             "user_action": "PAY_NOW"
         }
     })
-    
+
     try:
         response = paypal.execute(order_request)
         order_id = response.result.id
-        
+
         # Find approval URL
         approval_url = None
         for link in response.result.links:
             if link.rel == "approve":
                 approval_url = link.href
                 break
-        
+
         if not approval_url:
             raise HTTPException(status_code=502, detail="PayPal did not return an approval URL")
 
@@ -271,13 +290,13 @@ async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, p
                 "provider": "paypal"
             }
         )
-        
+
         doc = transaction.model_dump()
         doc['timestamp'] = doc['timestamp'].isoformat()
         await database.payment_transactions.insert_one(doc)
-        
+
         return {"url": approval_url, "order_id": order_id, "provider": "paypal"}
-    
+
     except HTTPException:
         raise
     except Exception:
@@ -288,25 +307,35 @@ async def create_paypal_order(request: Request, checkout_req: CheckoutRequest, p
 @api_router.post("/payments/paypal/capture/{order_id}")
 async def capture_paypal_order(order_id: str):
     """
-    Capture PayPal order after approval
+    Capture PayPal order after approval. The order is verified with PayPal
+    before capture; nothing about the caller's claims is trusted. Payer
+    details are not returned.
     """
     paypal = require_paypal()
     database = require_db()
-    capture_request = OrdersCaptureRequest(order_id)
-    
+
     try:
-        response = paypal.execute(capture_request)
-        
+        # Verify the order exists at PayPal and is in a capturable state.
+        get_response = paypal.execute(OrdersGetRequest(order_id))
+        order_status = get_response.result.status
+
+        if order_status == "COMPLETED":
+            return {"order_id": order_id, "status": "COMPLETED"}
+        if order_status != "APPROVED":
+            raise HTTPException(status_code=409, detail="Order is not approved for capture")
+
+        capture_response = paypal.execute(OrdersCaptureRequest(order_id))
+
         # Update transaction
         await database.payment_transactions.update_one(
             {"session_id": order_id},
-            {"$set": {"payment_status": response.result.status.lower()}}
+            {"$set": {"payment_status": capture_response.result.status.lower()}},
+            upsert=True
         )
-        
+
         return {
             "order_id": order_id,
-            "status": response.result.status,
-            "payer_email": response.result.payer.email_address if hasattr(response.result, 'payer') else None
+            "status": capture_response.result.status
         }
     except HTTPException:
         raise
@@ -315,25 +344,15 @@ async def capture_paypal_order(order_id: str):
         raise HTTPException(status_code=502, detail="PayPal capture failed")
 
 
-@api_router.get("/payments/status/{session_id}")
-async def get_payment_status(request: Request, session_id: str):
-    """Stripe payment status is unavailable in the standalone deployment."""
-    raise HTTPException(status_code=503, detail="Stripe is not available. Use PayPal.")
-
-
-@api_router.post("/webhook/stripe")
-async def stripe_webhook(request: Request):
-    """Stripe webhooks are unavailable in the standalone deployment."""
-    raise HTTPException(status_code=503, detail="Stripe is not available. Use PayPal.")
-
-
 # Include the router in the main app
 app.include_router(api_router)
 
+# CORS: known frontends only, no credentials. Never reflect arbitrary origins.
+DEFAULT_CORS_ORIGINS = 'https://meta-intel.vercel.app,https://metaintel.com,https://www.metaintel.com'
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials=False,
+    allow_origins=os.environ.get('CORS_ORIGINS', DEFAULT_CORS_ORIGINS).split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
